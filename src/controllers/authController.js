@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { sendOtpEmail } = require("../utils/email");
 const { writeAudit } = require("../utils/audit");
+const { validatePassword } = require("../utils/passwordPolicy");
 
 function isLocked(user) {
   return user.lockUntil && user.lockUntil.getTime() > Date.now();
@@ -48,17 +49,19 @@ exports.register = async (req, res) => {
     if (!name || !email || !password)
       return res.status(400).json({ message: "All fields are required." });
 
-    if (password.length < 8)
-      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    // ✅ Strong password policy (CW2-friendly)
+    const pwError = validatePassword(password);
+    if (pwError) return res.status(400).json({ message: pwError });
 
-    const exists = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const exists = await User.findOne({ email: normalizedEmail });
     if (exists) return res.status(409).json({ message: "Email already exists." });
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(String(password), 12);
 
     const user = await User.create({
-      name,
-      email: email.toLowerCase(),
+      name: String(name).trim(),
+      email: normalizedEmail,
       passwordHash,
     });
 
@@ -88,7 +91,7 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email: (email || "").toLowerCase() });
+    const user = await User.findOne({ email: String(email || "").toLowerCase() });
     if (!user) {
       await writeAudit(req, "LOGIN_FAIL_NOUSER", null, { email });
       return res.status(401).json({ message: "Invalid credentials." });
@@ -99,11 +102,11 @@ exports.login = async (req, res) => {
       return res.status(423).json({ message: "Account temporarily locked. Try later." });
     }
 
-    const ok = await bcrypt.compare(password || "", user.passwordHash);
+    const ok = await bcrypt.compare(String(password || ""), user.passwordHash);
     if (!ok) {
       user.failedLoginAttempts += 1;
 
-      if (user.failedLoginAttempts >= 5) {
+      if (user.failedLoginAttempts >= 3) {
         user.lockUntil = new Date(Date.now() + 10 * 60 * 1000);
         user.failedLoginAttempts = 0;
       }
@@ -248,9 +251,9 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: "Both current and new password are required." });
     }
 
-    if (String(newPassword).length < 8) {
-      return res.status(400).json({ message: "New password must be at least 8 characters." });
-    }
+    // ✅ Strong password policy
+    const pwError = validatePassword(String(newPassword));
+    if (pwError) return res.status(400).json({ message: pwError });
 
     const user = await User.findById(userId).select("+passwordHash");
     if (!user) return res.status(401).json({ message: "Unauthorized" });
@@ -261,10 +264,18 @@ exports.changePassword = async (req, res) => {
       return res.status(401).json({ message: "Current password is incorrect." });
     }
 
+    // ✅ Prevent password reuse (new must differ from current)
+    const isSame = await bcrypt.compare(String(newPassword), user.passwordHash);
+    if (isSame) {
+      return res.status(400).json({
+        message: "New password must be different from the current password.",
+      });
+    }
+
     user.passwordHash = await bcrypt.hash(String(newPassword), 12);
     await user.save();
 
-    // rotate tokens (nice security)
+    // ✅ rotate tokens (nice security)
     const accessToken = signAccess(user._id.toString());
     const refreshToken = signRefresh(user._id.toString());
     setAuthCookies(res, accessToken, refreshToken);
