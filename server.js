@@ -96,3 +96,4 @@ connectDB()
     console.error("❌ DB connection failed:", err.message);
     process.exit(1);
   });
+
