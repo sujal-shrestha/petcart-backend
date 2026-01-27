@@ -5,9 +5,12 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const path = require("path");
 
+
 require("dotenv").config();
 
 const connectDB = require("./src/config/db");
+const adminAuditRoutes = require("./src/routes/adminAuditRoutes");
+
 
 const app = express();
 
@@ -79,6 +82,8 @@ app.use("/api/orders", orderRoutes);
 // Stripe normal routes (create session, get session)
 const stripeRoutes = require("./src/routes/stripeRoutes");
 app.use("/api/stripe", stripeRoutes);
+
+app.use("/api/admin", adminAuditRoutes);
 
 // Start
 const PORT = 5050;
