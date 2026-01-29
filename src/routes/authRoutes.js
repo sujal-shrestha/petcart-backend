@@ -9,7 +9,6 @@ router.post("/verify-otp", otpLimiter, auth.verifyOtp);
 
 router.get("/me", requireAuth, auth.me);
 
-// ✅ NEW
 router.put("/me", requireAuth, auth.updateMe);
 router.put("/change-password", requireAuth, auth.changePassword);
 

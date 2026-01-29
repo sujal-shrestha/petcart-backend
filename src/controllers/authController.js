@@ -275,7 +275,6 @@ exports.changePassword = async (req, res) => {
     user.passwordHash = await bcrypt.hash(String(newPassword), 12);
     await user.save();
 
-    // ✅ rotate tokens (nice security)
     const accessToken = signAccess(user._id.toString());
     const refreshToken = signRefresh(user._id.toString());
     setAuthCookies(res, accessToken, refreshToken);
