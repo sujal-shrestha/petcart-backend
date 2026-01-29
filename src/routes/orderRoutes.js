@@ -46,7 +46,7 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/orders/my (protected) - optional but useful
+// GET /api/orders/my (protected)
 router.get("/my", requireAuth, async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id })

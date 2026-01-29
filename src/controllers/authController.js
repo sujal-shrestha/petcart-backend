@@ -49,7 +49,7 @@ exports.register = async (req, res) => {
     if (!name || !email || !password)
       return res.status(400).json({ message: "All fields are required." });
 
-    // ✅ Strong password policy (CW2-friendly)
+    // ✅ Strong password policy
     const pwError = validatePassword(password);
     if (pwError) return res.status(400).json({ message: pwError });
 
